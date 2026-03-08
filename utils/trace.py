@@ -1,6 +1,5 @@
 """
 Agent Trace Logger.
-Built from Day 1 so every agent call is captured automatically.
 Used to render the "Agent Trace" panel in the Streamlit sidebar.
 """
 
