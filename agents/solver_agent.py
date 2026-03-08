@@ -429,48 +429,65 @@ class SolverAgent:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    class _TestProblem(TypedDict):
-        problem_text: str
-        topic: str
-        rag_context: list[str]
+    import sys
+    from pathlib import Path
 
-    TEST_PROBLEMS: list[_TestProblem] = [
-        {
-            "problem_text": "Find all real solutions to x**2 - 5*x + 6 = 0.",
-            "topic": "algebra",
-            "rag_context": [],
-        },
-        {
-            "problem_text": (
-                "Differentiate f(x) = x**3 * sin(x) with respect to x, "
-                "then simplify the result."
-            ),
-            "topic": "calculus",
-            "rag_context": [],
-        },
-        {
-            "problem_text": (
-                "A bag contains 3 red balls and 2 blue balls. "
-                "Two balls are drawn at random without replacement. "
-                "What is the probability that both balls are red?"
-            ),
-            "topic": "probability",
-            "rag_context": [],
-        },
+    # Allow running from project root or agents/ directory
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+    from agents.router_agent import RouterAgent
+    from rag.retriever import Retriever
+
+    TEST_PROBLEMS = [
+        "Find all real solutions to x**2 - 5*x + 6 = 0.",
+        (
+            "Differentiate f(x) = x**3 * sin(x) with respect to x, "
+            "then simplify the result."
+        ),
+        (
+            "A bag contains 3 red balls and 2 blue balls. "
+            "Two balls are drawn at random without replacement. "
+            "What is the probability that both balls are red?"
+        ),
     ]
 
-    agent = SolverAgent()
+    router = RouterAgent()
+    retriever = Retriever()
+    solver = SolverAgent()
 
-    for i, prob in enumerate(TEST_PROBLEMS, 1):
+    for i, problem_text in enumerate(TEST_PROBLEMS, 1):
         print(f"\n{'='*60}")
-        print(f"Problem {i} [{prob['topic'].upper()}]")
-        print(f"  {prob['problem_text']}")
+        print(f"Problem {i}")
+        print(f"  {problem_text}")
         print("="*60)
 
-        result = agent.solve(
-            problem_text=prob["problem_text"],
-            topic=prob["topic"],
-            rag_context=prob["rag_context"],
+        # Step 1: Classify topic
+        print("\n[Router Agent]")
+        classification = router.classify(problem_text)
+        topic = classification["topic"] or "algebra"  # fallback
+        print(f"  Topic    : {classification['topic']}")
+        print(f"  Subtopic : {classification['subtopic']}")
+        print(f"  Reasoning: {classification['reasoning']}")
+
+        # Step 2: Retrieve RAG context
+        print("\n[RAG Retriever]")
+        raw_results = retriever.search(problem_text, topic=classification["topic"])
+        if raw_results:
+            print(f"  Found {len(raw_results)} chunks (top scores):")
+            for r in raw_results[:2]:
+                preview = r["text"][:120].replace("\n", " ")
+                print(f"    [{r['score']:.3f}] {r['source']}: {preview}...")
+            rag_context = [r["text"] for r in raw_results]
+        else:
+            print("  No RAG context found (run rag/embedder.py to populate).")
+            rag_context = []
+
+        # Step 3: Solve with RAG context
+        print("\n[Solver Agent]")
+        result = solver.solve(
+            problem_text=problem_text,
+            topic=topic,
+            rag_context=rag_context,
         )
 
         print("\nSteps:")
@@ -484,19 +501,28 @@ if __name__ == "__main__":
             print("\nTools Used:")
             for t in result["tools_used"]:
                 status = "OK" if t["output"].get("success") else "FAIL"
-                print(f"  [{status}] {t['tool']}({t['input']}) -> {t['output'].get('result') or t['output'].get('error')}")
+                print(f"  [{status}] {t['tool']} -> {t['output'].get('result') or t['output'].get('error')}")
         else:
             print("\nTools Used: none")
 
-    # Print full tracer summary
+    # Print combined trace summary
     print(f"\n{'='*60}")
     print("Agent Trace Summary")
     print("="*60)
-    for step in agent.tracer.get_steps():
-        print(f"  Agent : {step.agent_name}")
-        print(f"  Input : {step.input_summary}")
-        print(f"  Output: {step.output_summary}")
-        print(f"  Time  : {step.duration_ms:.1f}ms")
-        print(f"  Meta  : {step.metadata}")
-        print()
-    print(f"Total duration: {agent.tracer.total_duration_ms():.1f}ms")
+
+    all_tracers = [
+        ("Router", router.tracer),
+        ("Solver", solver.tracer),
+    ]
+    total_ms = 0.0
+    for agent_label, tracer in all_tracers:
+        for step in tracer.get_steps():
+            print(f"  [{agent_label}] {step.agent_name}")
+            print(f"    Input  : {step.input_summary}")
+            print(f"    Output : {step.output_summary}")
+            print(f"    Time   : {step.duration_ms:.1f}ms")
+            print(f"    Meta   : {step.metadata}")
+            print()
+        total_ms += tracer.total_duration_ms()
+
+    print(f"Total duration: {total_ms:.1f}ms")
