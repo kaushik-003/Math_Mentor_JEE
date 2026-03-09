@@ -12,6 +12,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import streamlit as st
 
+from datetime import datetime
+from uuid import uuid4
+
 import config
 from utils.trace import AgentTracer, TraceStep
 from utils.ocr import extract_text_from_image
@@ -24,6 +27,7 @@ from agents.verifier_agent import VerifierAgent
 from agents.refiner_agent import RefinerAgent
 from agents.explainer_agent import ExplainerAgent
 from rag.retriever import Retriever
+from memory.store import MemoryStore
 
 # ---------------------------------------------------------------------------
 # Page config — must be first Streamlit call
@@ -70,6 +74,9 @@ _SS_DEFAULTS: dict = {
     "hint_problem_text": "",
     "hint_topic": "",
     "hint_rag_context": [],
+    # Memory (Phase 5)
+    "current_interaction_id": None,
+    "memory_matches": [],
 }
 
 for _k, _v in _SS_DEFAULTS.items():
@@ -147,6 +154,8 @@ def _reset_pipeline() -> None:
     ss.hint_problem_text = ""
     ss.hint_topic = ""
     ss.hint_rag_context = []
+    ss.current_interaction_id = None
+    ss.memory_matches = []
 
 
 def _run_explainer_and_finish() -> None:
@@ -166,7 +175,45 @@ def _run_explainer_and_finish() -> None:
             ss.explainer_result = None
 
     ss.phase = "solved"
+    _save_current_interaction()
     st.rerun()
+
+
+def _search_memory(problem_text: str) -> None:
+    """Search memory for similar past problems. Stores results in ss.memory_matches."""
+    try:
+        store = MemoryStore()
+        ss.memory_matches = store.find_similar(problem_text)
+    except Exception:
+        ss.memory_matches = []
+
+
+def _save_current_interaction() -> None:
+    """Build an interaction dict from session state and persist to memory + vector store."""
+    try:
+        store = MemoryStore()
+        interaction = {
+            "id": str(uuid4()),
+            "timestamp": datetime.now().isoformat(),
+            "input_type": ss.get("input_mode", "text").lower(),
+            "raw_input": ss.extracted_text,
+            "parsed_question": (ss.parser_result or {}).get("problem_text", ""),
+            "topic": (ss.router_result or {}).get("topic", ""),
+            "subtopic": (ss.router_result or {}).get("subtopic", ""),
+            "retrieved_context_sources": [r["source"] for r in ss.rag_results],
+            "solution": ss.current_result,
+            "verifier_outcome": {
+                "is_correct": ss.verifier_result.get("is_correct") if ss.verifier_result else None,
+                "confidence": ss.verifier_result.get("confidence") if ss.verifier_result else None,
+                "was_refined": ss.refiner_result is not None,
+            },
+            "user_feedback": {"rating": None, "comment": "", "timestamp": None},
+            "learning_mode": ss.learning_mode,
+        }
+        ss.current_interaction_id = store.save_interaction(interaction)
+        store.add_to_vector_store(interaction["id"], interaction["parsed_question"])
+    except Exception as e:
+        print(f"[Memory] Failed to save interaction: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -185,6 +232,9 @@ def _run_pipeline(problem_text: str) -> None:
     """
     tracer = AgentTracer()
     ss.tracer = tracer
+
+    # ── Memory search (before any agents) ────────────────────────────
+    _search_memory(problem_text)
 
     with st.spinner("Screening input & parsing problem..."):
 
@@ -237,6 +287,16 @@ def _run_pipeline(problem_text: str) -> None:
         ss.rag_ready = retriever._ready
         rag_context = [r["text"] for r in rag_results]
 
+        # Inject memory context from similar past solutions
+        if ss.memory_matches:
+            best = ss.memory_matches[0]
+            memory_ctx = (
+                f"Previously solved similar problem:\n"
+                f"Q: {best['parsed_question']}\n"
+                f"A: {best['solution']['final_answer']}"
+            )
+            rag_context.append(memory_ctx)
+
     # ── Branch: Hint mode ────────────────────────────────────────────────
     if ss.learning_mode == "hint":
         with st.spinner("Generating hints..."):
@@ -253,6 +313,7 @@ def _run_pipeline(problem_text: str) -> None:
             ss.hint_extra = None
             ss.phase = "hint_shown"
 
+        _save_current_interaction()
         st.rerun()
         return
 
@@ -342,6 +403,7 @@ def _run_pipeline(problem_text: str) -> None:
             ss.explainer_result = None
 
         ss.phase = "solved"
+        _save_current_interaction()
 
     st.rerun()
 
@@ -433,6 +495,7 @@ def _run_full_solve_from_hint() -> None:
             ss.explainer_result = None
 
         ss.phase = "solved"
+        _save_current_interaction()
 
     st.rerun()
 
@@ -512,6 +575,25 @@ margin-bottom:8px;background:#f8f9fa;border-radius:2px;font-family:monospace;">
                     st.divider()
         else:
             st.caption("No sources retrieved yet.")
+
+    # ── Memory Panel ──────────────────────────────────────────────────
+    with st.expander("🧠 Memory", expanded=False):
+        try:
+            _mem_stats = MemoryStore().get_stats()
+            st.metric("Total Problems Solved", _mem_stats["total"])
+            st.metric("Correct Answers", _mem_stats["correct"])
+
+            if _mem_stats["by_topic"]:
+                st.write("**By Topic:**")
+                for _topic, _count in _mem_stats["by_topic"].items():
+                    st.write(f"  {_topic}: {_count}")
+
+            if st.button("🗑️ Clear Memory", key="clear_memory_btn"):
+                MemoryStore().clear()
+                st.success("Memory cleared!")
+                st.rerun()
+        except Exception:
+            st.caption("Memory unavailable.")
 
 # ---------------------------------------------------------------------------
 # Main Area
@@ -753,6 +835,16 @@ if ss.phase == "reviewing" and ss.current_result:
 
 if ss.phase == "hint_shown" and ss.hint_result:
     st.divider()
+
+    # ── Memory: similar past problem ─────────────────────────────────
+    if ss.memory_matches:
+        best = ss.memory_matches[0]
+        st.info(f"Similar problem found! (Similarity: {best['similarity_score']:.0%})")
+        with st.expander("Previously solved similar problem", expanded=False):
+            st.write(f"**Question:** {best['parsed_question']}")
+            st.write(f"**Answer:** {best['solution']['final_answer']}")
+            st.write(f"**Feedback:** {best['user_feedback'].get('rating') or 'No feedback yet'}")
+
     hint = ss.hint_result
     diff_icon = _DIFFICULTY_COLORS.get(hint.get("difficulty", ""), "")
     concept = hint.get("concept", "")
@@ -791,6 +883,15 @@ if ss.phase == "hint_shown" and ss.hint_result:
 
 if ss.phase == "solved" and ss.current_result:
     st.divider()
+
+    # ── Memory: similar past problem ─────────────────────────────────
+    if ss.memory_matches:
+        best = ss.memory_matches[0]
+        st.info(f"Similar problem found! (Similarity: {best['similarity_score']:.0%})")
+        with st.expander("Previously solved similar problem", expanded=False):
+            st.write(f"**Question:** {best['parsed_question']}")
+            st.write(f"**Answer:** {best['solution']['final_answer']}")
+            st.write(f"**Feedback:** {best['user_feedback'].get('rating') or 'No feedback yet'}")
 
     result = ss.current_result
     router = ss.router_result or {}
@@ -939,6 +1040,11 @@ if ss.phase == "solved" and ss.current_result:
             if st.button("✅ Correct", key="feedback_correct"):
                 ss.feedback_type = "correct"
                 ss.feedback_given = True
+                try:
+                    if ss.current_interaction_id:
+                        MemoryStore().update_feedback(ss.current_interaction_id, "correct")
+                except Exception:
+                    pass
                 st.rerun()
 
         with fb_col2:
@@ -954,10 +1060,20 @@ if ss.phase == "solved" and ss.current_result:
             if st.button("Submit feedback", key="feedback_submit"):
                 ss.feedback_comment = comment
                 ss.feedback_given = True
+                try:
+                    if ss.current_interaction_id:
+                        MemoryStore().update_feedback(
+                            ss.current_interaction_id, "incorrect", comment
+                        )
+                except Exception:
+                    pass
                 st.rerun()
 
     else:
         if ss.feedback_type == "correct":
-            st.success("Thanks! Glad the solution was helpful.")
+            st.success("Thanks! Glad the solution was helpful. Feedback saved to memory!")
         else:
-            st.info("Thanks for the feedback — your response has been recorded.")
+            st.info(
+                "Thanks for the feedback — saved to memory! "
+                "This will help improve future solutions."
+            )

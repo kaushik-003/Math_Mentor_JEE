@@ -7,6 +7,7 @@ rather than just reading the proposed solution.
 import json
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import openai
 
@@ -95,7 +96,7 @@ class VerifierAgent:
         tools_used: list[dict] = []
 
         user_msg = self._build_user_message(problem_text, topic, solver_solution, rag_context or [])
-        messages = [
+        messages: list[Any] = [
             {"role": "system", "content": VERIFIER_SYSTEM_PROMPT},
             {"role": "user", "content": user_msg},
         ]
@@ -106,8 +107,8 @@ class VerifierAgent:
                 response = self.client.chat.completions.create(
                     model=self.model,
                     temperature=config.LLM_TEMPERATURE,
-                    messages=messages,
-                    tools=TOOL_SCHEMAS,
+                    messages=cast(Any, messages),
+                    tools=cast(Any, TOOL_SCHEMAS),
                     tool_choice="auto",
                 )
             except Exception as e:
@@ -119,6 +120,8 @@ class VerifierAgent:
             if msg.tool_calls:
                 messages.append(msg)
                 for tc in msg.tool_calls:
+                    if getattr(tc, "type", None) != "function" or not hasattr(tc, "function"):
+                        continue
                     tool_name = tc.function.name
                     try:
                         args = json.loads(tc.function.arguments)
@@ -137,7 +140,7 @@ class VerifierAgent:
                 continue
 
             # No tool calls — this is the final verification result
-            result = self._parse_final_response(msg.content, solver_solution)
+            result = self._parse_final_response(msg.content or "", solver_solution)
             self.tracer.end(
                 input_summary=f"[{topic}] proposed={solver_solution.get('final_answer', '')[:60]}",
                 output_summary=(

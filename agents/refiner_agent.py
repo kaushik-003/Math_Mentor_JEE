@@ -7,6 +7,7 @@ Runs at most config.MAX_REFINER_ITERATIONS times (currently 1).
 import json
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import openai
 
@@ -97,7 +98,7 @@ class RefinerAgent:
         user_msg = self._build_user_message(
             problem_text, topic, failed_solution, verifier_issues, rag_context or []
         )
-        messages = [
+        messages: list[Any] = [
             {"role": "system", "content": REFINER_SYSTEM_PROMPT},
             {"role": "user", "content": user_msg},
         ]
@@ -108,8 +109,8 @@ class RefinerAgent:
                 response = self.client.chat.completions.create(
                     model=self.model,
                     temperature=config.LLM_TEMPERATURE,
-                    messages=messages,
-                    tools=TOOL_SCHEMAS,
+                    messages=cast(Any, messages),
+                    tools=cast(Any, TOOL_SCHEMAS),
                     tool_choice="auto",
                 )
             except Exception as e:
@@ -121,6 +122,8 @@ class RefinerAgent:
             if msg.tool_calls:
                 messages.append(msg)
                 for tc in msg.tool_calls:
+                    if getattr(tc, "type", None) != "function" or not hasattr(tc, "function"):
+                        continue
                     tool_name = tc.function.name
                     try:
                         args = json.loads(tc.function.arguments)
@@ -139,7 +142,7 @@ class RefinerAgent:
                 continue
 
             # Final corrected solution
-            result = self._parse_final_response(msg.content, tools_used)
+            result = self._parse_final_response(msg.content or "", tools_used)
             self.tracer.end(
                 input_summary=f"[{topic}] issues={len(verifier_issues)} failed_ans={failed_solution.get('final_answer', '')[:40]}",
                 output_summary=f"refined_ans={result.get('final_answer', '')[:60]} conf={result.get('confidence', 0):.2f}",

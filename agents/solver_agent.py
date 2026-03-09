@@ -6,7 +6,7 @@ All arithmetic is delegated to SymPy tools — the LLM never computes numbers it
 
 import json
 import sys
-from typing import Any
+from typing import Any, cast
 
 import openai
 
@@ -356,8 +356,8 @@ class SolverAgent:
                 return self.client.chat.completions.create(
                     model=self.model,
                     temperature=config.LLM_TEMPERATURE,
-                    messages=messages,
-                    tools=TOOL_SCHEMAS,
+                    messages=cast(Any, messages),
+                    tools=cast(Any, TOOL_SCHEMAS),
                     tool_choice="auto",
                 )
             except (openai.RateLimitError, openai.APITimeoutError, openai.APIConnectionError) as e:
