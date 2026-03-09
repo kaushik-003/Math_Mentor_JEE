@@ -6,8 +6,7 @@ All arithmetic is delegated to SymPy tools — the LLM never computes numbers it
 
 import json
 import sys
-import os
-from typing import Any, TypedDict
+from typing import Any
 
 import openai
 
@@ -242,6 +241,7 @@ class SolverAgent:
     def __init__(self, tracer: AgentTracer | None = None):
         self.client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
         self.tracer = tracer or AgentTracer()
+        self.model = config.LLM_MODEL
 
     def solve(
         self,
@@ -354,7 +354,7 @@ class SolverAgent:
         for attempt in range(config.MAX_SOLVER_RETRIES + 1):
             try:
                 return self.client.chat.completions.create(
-                    model=config.LLM_MODEL,
+                    model=self.model,
                     temperature=config.LLM_TEMPERATURE,
                     messages=messages,
                     tools=TOOL_SCHEMAS,

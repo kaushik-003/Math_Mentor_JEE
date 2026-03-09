@@ -65,6 +65,7 @@ class RouterAgent:
     def __init__(self, tracer: AgentTracer | None = None) -> None:
         self.client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
         self.tracer = tracer or AgentTracer()
+        self.model = config.LLM_MODEL
 
     def classify(self, problem_text: str) -> dict:
         """
@@ -86,7 +87,7 @@ class RouterAgent:
 
         try:
             response = self.client.chat.completions.create(
-                model=config.LLM_MODEL,
+                model=self.model,
                 temperature=0.0,  # Deterministic classification
                 messages=[
                     {"role": "system", "content": ROUTER_SYSTEM_PROMPT},

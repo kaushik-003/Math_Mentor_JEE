@@ -56,6 +56,7 @@ class ParserAgent:
     def __init__(self, tracer: AgentTracer | None = None) -> None:
         self.client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
         self.tracer = tracer or AgentTracer()
+        self.model = config.LLM_MODEL
 
     def parse(self, raw_text: str) -> dict:
         """
@@ -91,7 +92,7 @@ class ParserAgent:
 
         try:
             response = self.client.chat.completions.create(
-                model=config.LLM_MODEL,
+                model=self.model,
                 temperature=0.0,
                 messages=[
                     {"role": "system", "content": PARSER_SYSTEM_PROMPT},

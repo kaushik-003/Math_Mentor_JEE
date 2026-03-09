@@ -46,3 +46,4 @@ SUPPORTED_TOPICS = [
 KNOWLEDGE_DIR = "data/knowledge"
 MEMORY_FILE = "memory/memory.json"
 CHROMA_PERSIST_DIR = "data/chroma_db"
+
