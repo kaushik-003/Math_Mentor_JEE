@@ -239,9 +239,9 @@ class SolverAgent:
     Delegates all computation to SymPy tools via the tool call loop.
     """
 
-    def __init__(self):
+    def __init__(self, tracer: AgentTracer | None = None):
         self.client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
-        self.tracer = AgentTracer()
+        self.tracer = tracer or AgentTracer()
 
     def solve(
         self,

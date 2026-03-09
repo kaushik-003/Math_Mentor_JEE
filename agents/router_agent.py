@@ -62,9 +62,9 @@ class RouterAgent:
     Returns a dict with topic, subtopic, and reasoning.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, tracer: AgentTracer | None = None) -> None:
         self.client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
-        self.tracer = AgentTracer()
+        self.tracer = tracer or AgentTracer()
 
     def classify(self, problem_text: str) -> dict:
         """
