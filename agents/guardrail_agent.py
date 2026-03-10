@@ -14,9 +14,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import config
 from utils.trace import AgentTracer
 
-# ---------------------------------------------------------------------------
+
 # Prompt
-# ---------------------------------------------------------------------------
+
 
 GUARDRAIL_SYSTEM_PROMPT = """You are a guardrail for a JEE math tutoring system.
 
@@ -33,9 +33,9 @@ Return JSON only:
   "category": "valid_math | off_topic | out_of_scope | harmful | too_vague"
 }"""
 
-# ---------------------------------------------------------------------------
+
 # Guardrail Agent
-# ---------------------------------------------------------------------------
+
 
 
 class GuardrailAgent:
@@ -109,9 +109,9 @@ class GuardrailAgent:
             return fallback
 
 
-# ---------------------------------------------------------------------------
+
 # Entry Point — Smoke Tests
-# ---------------------------------------------------------------------------
+
 
 if __name__ == "__main__":
     TEST_CASES = [

@@ -289,6 +289,30 @@ def ensure_memory_collection(chroma_client: chromadb.PersistentClient) -> None:
 # Main Pipeline
 # ---------------------------------------------------------------------------
 
+def build_knowledge_base() -> dict:
+    """
+    Build the knowledge base if the ChromaDB collection is empty.
+    Safe to call on every app startup — skips if already populated.
+    Returns stats dict.
+    """
+    chroma_client = get_chroma_client()
+    try:
+        collection = chroma_client.get_collection(config.CHROMA_KNOWLEDGE_COLLECTION)
+        count = collection.count()
+        if count > 0:
+            print(f"[KnowledgeBase] Already populated ({count} chunks). Skipping embed.")
+            # Ensure memory collection exists even when skipping
+            ensure_memory_collection(chroma_client)
+            return {"files": 0, "chunks": count, "stored": count, "skipped": True}
+    except Exception:
+        pass  # Collection doesn't exist yet — proceed with full embed
+
+    print("[KnowledgeBase] Collection empty or missing. Building knowledge base...")
+    result = run_embedding_pipeline()
+    print(f"[KnowledgeBase] Done. {result.get('chunks', 0)} chunks created.")
+    return result
+
+
 def run_embedding_pipeline() -> dict:
     """
     Full pipeline: chunk → embed → store.

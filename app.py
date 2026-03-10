@@ -40,6 +40,18 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
+# Auto-build knowledge base on first boot (cached across reruns)
+# ---------------------------------------------------------------------------
+
+@st.cache_resource
+def init_knowledge_base():
+    """Build the RAG knowledge base once per app session. Cached across reruns."""
+    from rag.embedder import build_knowledge_base
+    return build_knowledge_base()
+
+init_knowledge_base()
+
+# ---------------------------------------------------------------------------
 # Session state initialisation
 # ---------------------------------------------------------------------------
 
