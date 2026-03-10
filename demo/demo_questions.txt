@@ -1,0 +1,21 @@
+# Math Mentor — Demo Questions
+# Each question is designed to showcase a specific feature.
+
+# 1. Text Input + Solve Mode (Probability)
+In a binomial distribution with n=6 and p=1/3, find P(X=2).
+
+# 2. Image Input + HITL #1 (use a screenshot of a handwritten/printed JEE problem)
+# Upload an image of: "Solve x² - 5x + 6 = 0"
+# Demonstrates: OCR extraction, confidence badge, input editing
+
+# 3. Audio Input + Hint Mode
+# Record: "Find the derivative of x cubed times sin x"
+# Demonstrates: Whisper transcription, hint generation, "Show Full Solution" transition
+
+# 4. HITL #3 Trigger (Verification Review)
+# Use a harder problem that may produce low verifier confidence:
+Find the value of k such that the system of equations x+2y=5, 3x+ky=15 has infinitely many solutions.
+
+# 5. Memory Reuse
+# Run AFTER question #1 is solved. This is a rephrased version:
+Find the probability of exactly 2 successes in 6 independent trials where each trial has a 1/3 chance of success.
