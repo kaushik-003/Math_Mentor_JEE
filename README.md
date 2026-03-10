@@ -1,4 +1,4 @@
-# 🧮 Math Mentor — JEE Advanced Problem Solver
+# Math Mentor — JEE Advanced Problem Solver
 
 An AI-powered math tutoring system with multi-agent reasoning, RAG, human-in-the-loop, and self-learning memory.
 
