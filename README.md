@@ -9,7 +9,6 @@ An AI-powered math tutoring system with multi-agent reasoning, RAG, human-in-the
 
 **🔗 Live Demo:** [https://math-mentor-jee.streamlit.app]
 
-**📹 Demo Video:** [link to be added]
 
 ---
 
