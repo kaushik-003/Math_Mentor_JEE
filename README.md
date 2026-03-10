@@ -7,7 +7,7 @@ An AI-powered math tutoring system with multi-agent reasoning, RAG, human-in-the
 ![GPT-4o](https://img.shields.io/badge/GPT--4o-Powered-412991?logo=openai&logoColor=white)
 ![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector_Store-green)
 
-**🔗 Live Demo:** [link to be added after deployment]
+**🔗 Live Demo:** [https://math-mentor-jee.streamlit.app]
 
 **📹 Demo Video:** [link to be added]
 
